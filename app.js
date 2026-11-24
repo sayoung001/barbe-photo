@@ -4,7 +4,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "2.2.0";
+  const VERSION = "2.3.0";
   const Q = window.BarbeQ;
   const RD = window.BarbeRead;
   const READ_CFG = window.BARBE_READ || { maxEdge: 1600 };
@@ -109,9 +109,10 @@
       try {
         const data = await f.arrayBuffer();
         if (!data.byteLength) throw new Error("빈 사진");
-        // 찍은 시각: 앱에서 찍었으면 지금. 앨범에서 고른 것은 파일 시각(10년 이내일 때)
+        // 찍은 시각: 앱 안 카메라는 셔터 누른 순간(파일 시각), 기본 카메라는 지금. 앨범에서 고른 것은 파일 시각(10년 이내일 때)
         const now = Date.now();
-        const t = fromCamera || !f.lastModified || Math.abs(now - f.lastModified) > 3650 * 86400000 ? now : f.lastModified;
+        const t = fromCamera === "app" && f.lastModified ? f.lastModified
+          : fromCamera || !f.lastModified || Math.abs(now - f.lastModified) > 3650 * 86400000 ? now : f.lastModified;
         const d = new Date(t);
         const id = uid();
         const ext = (f.name.match(/\.([A-Za-z0-9]+)$/) || [, f.type === "image/png" ? "png" : "jpg"])[1].toLowerCase();
@@ -138,6 +139,7 @@
     }
     await refresh();
     kick();
+    return saved;
   }
 
   // ---------- 저장소 지키기 ----------
@@ -402,7 +404,167 @@
   }
 
   // ---------- 촬영 ----------
-  $("btnCam").onclick = () => { if (!whyBlocked()) $("inCam").click(); };
+  // v2.3 (2026-11-24): 앱 안 카메라 — 폰 기본 카메라의 '다시 찍기 / 사진 사용' 확인 없이 셔터를 누르면 바로 폰 보관함에.
+  // 저장은 기본 카메라와 같은 addFiles 한 길. 앱 카메라가 안 되면(없음·권한 거부) 예전 기본 카메라(#inCam).
+  // ⚙︎ '앱 카메라로 바로 저장' 을 끄면 예전 방식 그대로 (되돌리기).
+  const cam = { open: false, gen: 0, stream: null, track: null, shots: [], chain: Promise.resolve(),
+                saved: 0, failed: 0, pending: 0, torch: false, lastUrl: "" };
+  const camOK = () => !settings.nativeCam && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  function camMsg(t, bad) { $("camMsg").textContent = t; $("camMsg").classList.toggle("bad", !!bad); }
+  function camStatus() {
+    $("camCount").textContent = cam.shots.length ? `이번에 ${cam.shots.length}장` : "";
+    if (cam.pending) camMsg(`폰에 저장하는 중… ${cam.pending}`);
+    else if (cam.failed) camMsg(`⚠ ${cam.failed}장 폰 저장 실패 — 다시 찍어 주세요 · ✓ ${cam.saved}장 저장`, true);
+    else camMsg(cam.saved ? `✓ 폰에 저장 ${cam.saved}장 — 신호 있으면 드라이브로 보내요` : "셔터를 누르면 바로 저장돼요");
+  }
+  function camStop() {
+    if (cam.stream) cam.stream.getTracks().forEach((t) => t.stop());
+    cam.stream = null; cam.track = null; cam.torch = false;
+    $("camVideo").srcObject = null;
+    $("camShot").disabled = true;
+  }
+  async function camStart() {
+    camStop();
+    const my = ++cam.gen;
+    $("camErr").classList.add("hidden");
+    $("camTorch").classList.add("hidden");
+    camMsg("카메라 켜는 중…");
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: false,
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 3840 }, height: { ideal: 2160 } } });
+      if (my !== cam.gen || !cam.open) { s.getTracks().forEach((t) => t.stop()); return; }   // 그새 닫았거나 다시 켬
+      cam.stream = s; cam.track = s.getVideoTracks()[0];
+      const v = $("camVideo");
+      v.srcObject = s;
+      await v.play().catch(() => {});
+      try {
+        const caps = cam.track.getCapabilities ? cam.track.getCapabilities() : {};
+        if ((caps.focusMode || []).includes("continuous")) cam.track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
+        $("camTorch").classList.toggle("hidden", !caps.torch);
+      } catch {}
+      $("camShot").disabled = false;
+      camStatus();
+    } catch (e) {
+      if (my !== cam.gen || !cam.open) return;
+      camStop();
+      $("camErrMsg").textContent = e && e.name === "NotAllowedError"
+        ? "카메라 권한이 꺼져 있어요. 폰 설정에서 사파리/크롬의 카메라를 허용하거나, 아래 단추로 기본 카메라를 쓰세요."
+        : `카메라를 켜지 못했어요 (${(e && e.name) || e}). 아래 단추로 기본 카메라를 쓰세요.`;
+      $("camErr").classList.remove("hidden");
+      camMsg("");
+    }
+  }
+  function camOpen() {
+    const c = curCat();
+    cam.open = true; cam.shots = []; cam.saved = 0; cam.failed = 0;
+    $("camDest").textContent = `${c.label}${sel.sub ? " " + sel.sub : ""} → ${folderFor(c, new Date())}`;
+    $("camAlbum").checked = !!settings.toAlbum;
+    $("camLast").classList.add("hidden");
+    $("camView").classList.remove("hidden");
+    document.body.classList.add("camOn");
+    try { history.pushState({ barbeCam: 1 }, ""); } catch {}
+    camStatus();
+    camStart();
+  }
+  /** 닫기 — 사진첩 저장은 누른 손길 안에서 바로 (기다리면 아이폰이 공유창을 막는다) */
+  function camClose(fromPop) {
+    if (!cam.open) return;
+    if ($("camAlbum").checked && cam.shots.length) {
+      const ready = cam.shots.filter((s) => s.file).map((s) => s.file);
+      const late = cam.shots.filter((s) => !s.file);
+      if (ready.length) toAlbum(ready);
+      // 닫기 직전에 찍어 아직 JPEG 가 덜 된 것 — 다 되면 띠로 한 번 더 누르게 (손길 없이는 공유창이 막힌다)
+      if (late.length) Promise.all(late.map((s) => s.ready)).then((fs) => { fs = fs.filter(Boolean); if (fs.length) offerAlbum(fs); });
+    }
+    cam.open = false; cam.gen++;
+    camStop();
+    $("camView").classList.add("hidden");
+    document.body.classList.remove("camOn");
+    if (cam.lastUrl) { URL.revokeObjectURL(cam.lastUrl); cam.lastUrl = ""; }
+    if (!fromPop && history.state && history.state.barbeCam) history.back();
+    cam.shots = [];
+  }
+  async function camShoot() {
+    const v = $("camVideo");
+    const w = v.videoWidth, h = v.videoHeight;
+    if (!cam.stream || !w || !h) return;
+    const at = new Date();
+    const cv = document.createElement("canvas");
+    cv.width = w; cv.height = h;
+    cv.getContext("2d").drawImage(v, 0, 0, w, h);
+    const fl = $("camFlash");
+    fl.classList.add("on"); setTimeout(() => fl.classList.remove("on"), 90);
+    try { if (navigator.vibrate) navigator.vibrate(30); } catch {}
+    // 자리는 누른 순간 잡는다 — JPEG 만들기가 빨리 끝난 것이 먼저 저장되면 순서가 바뀐다
+    const shot = { file: null };
+    shot.ready = new Promise((res) => cv.toBlob(res, "image/jpeg", 0.92)).then((blob) => {
+      if (!blob) return null;
+      shot.file = new File([blob], `${ymd(at)}_${hms(at)}_바흐브.jpg`, { type: "image/jpeg", lastModified: at.getTime() });
+      if (cam.open && cam.shots[cam.shots.length - 1] === shot) {
+        if (cam.lastUrl) URL.revokeObjectURL(cam.lastUrl);
+        cam.lastUrl = URL.createObjectURL(blob);
+        $("camLast").src = cam.lastUrl; $("camLast").classList.remove("hidden");
+      }
+      return shot.file;
+    });
+    cam.shots.push(shot);
+    cam.pending++; camStatus();
+    // 저장은 찍은 순서대로 줄 세운다 — 셔터는 막지 않는다
+    cam.chain = cam.chain.then(async () => {
+      const f = await shot.ready;
+      const n = f ? await addFiles([f], "app").catch(() => 0) : 0;
+      cam.pending--;
+      if (n) cam.saved += n; else cam.failed++;
+      if (cam.open) camStatus();
+    });
+  }
+  // 사진첩(아이폰 '사진' · 갤럭시 '갤러리')에도 — 아이폰은 공유창 '이미지 N개 저장', 그 밖은 내려받기(Download 앨범)
+  function toAlbum(files) {
+    const done = () => toast(`📥 사진첩으로 ${files.length}장 — 앱·드라이브 보관은 그대로예요`, 4000);
+    if (isIOS && navigator.canShare && navigator.share) {
+      try {
+        if (navigator.canShare({ files })) {
+          navigator.share({ files }).then(done).catch((e) => {
+            if (e && e.name === "AbortError") toast("사진첩 저장을 취소했어요 — 앱·드라이브엔 그대로 있어요", 4000);
+            else offerAlbum(files);
+          });
+          return;
+        }
+      } catch { offerAlbum(files); return; }
+    }
+    for (const f of files) {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(f); a.download = f.name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    }
+    done();
+  }
+  let albumLater = [];
+  function offerAlbum(files) {   // 공유창을 못 열었을 때 — 한 번 더 누르면 (그 손길로) 연다
+    albumLater = files;
+    $("bnAlbumMsg").textContent = `방금 찍은 ${files.length}장을 사진첩에 아직 못 넣었어요.`;
+    $("bnAlbum").classList.remove("hidden");
+  }
+  $("btnAlbum").onclick = () => { const f = albumLater; albumLater = []; $("bnAlbum").classList.add("hidden"); if (f.length) toAlbum(f); };
+  $("camShot").onclick = () => camShoot();
+  $("camClose").onclick = () => camClose(false);
+  $("camNative").onclick = () => { camClose(false); $("inCam").click(); };
+  $("camAlbum").onchange = (e) => { settings.toAlbum = e.target.checked; Q.saveSettings(settings); };
+  $("camTorch").onclick = () => {
+    if (!cam.track) return;
+    const on = !cam.torch;
+    cam.track.applyConstraints({ advanced: [{ torch: on }] }).then(() => { cam.torch = on; $("camTorch").classList.toggle("on", on); }).catch(() => {});
+  };
+  window.addEventListener("popstate", () => { if (cam.open) camClose(true); });   // 안드로이드 [뒤로] = 카메라만 닫기
+  document.addEventListener("visibilitychange", () => {
+    if (!cam.open) return;
+    if (document.visibilityState === "hidden") { cam.gen++; camStop(); } else camStart();
+  });
+  $("btnCam").onclick = () => {
+    if (whyBlocked()) return;
+    if (camOK()) camOpen(); else $("inCam").click();
+  };
   $("inCam").onchange = async (e) => { const fl = e.target.files; await addFiles(fl, true); e.target.value = ""; };
   $("inAlbum").onchange = async (e) => { const fl = e.target.files; await addFiles(fl, false); e.target.value = ""; };
   $("lblAlbum").onclick = (e) => { if (whyBlocked()) { e.preventDefault(); toast(whyBlocked()); } };
@@ -414,6 +576,7 @@
     $("sUrl").value = settings.url || "";
     $("sKey").value = settings.key || "";
     $("sKeep").value = settings.keepDays || 7;
+    $("sAppCam").checked = !settings.nativeCam;
     $("setMsg").textContent = "";
     $("ver").textContent = `v${VERSION}`;
     storeInfo();
@@ -434,6 +597,7 @@
     return Object.assign({}, settings, {
       name: safe($("sName").value), url: $("sUrl").value.trim(), key: $("sKey").value.trim(),
       keepDays: Math.min(60, Math.max(1, parseInt($("sKeep").value, 10) || 7)),
+      nativeCam: !$("sAppCam").checked,
     });
   }
   $("btnSettings").onclick = openSettings;

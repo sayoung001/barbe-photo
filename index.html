@@ -104,6 +104,34 @@
   .rn { font-size:11.5px; color:var(--ok); margin-top:4px; }
   #vRead .rc { margin:10px 0 4px; }
   small.mono { font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--muted); }
+  .set label.chk { display:flex; gap:8px; align-items:center; color:#111; font-size:14px; margin-top:14px; line-height:1.35; }
+  .set input[type=checkbox] { width:22px; height:22px; flex:none; padding:0; }
+
+  /* 앱 안 카메라 (v2.3) — 셔터 = 바로 저장, 연속 촬영 */
+  body.camOn { overflow:hidden; }
+  .camv { position:fixed; inset:0; z-index:20; background:#000; color:#fff; display:flex; flex-direction:column; }
+  .camv .top { display:flex; align-items:center; gap:10px; padding:calc(8px + env(safe-area-inset-top)) 12px 8px; }
+  .camv .dst { flex:1; font-size:13px; line-height:1.35; word-break:break-all; opacity:.92; }
+  .camv .x { background:rgba(255,255,255,.18); color:#fff; border:0; border-radius:20px; padding:10px 14px; font-size:15px; font-weight:700; flex:none; }
+  .camv .x.on { background:#facc15; color:#111; }
+  .camv .stage { position:relative; flex:1; min-height:0; display:flex; }
+  .camv video { width:100%; height:100%; object-fit:contain; background:#000; }
+  .camv .flash { position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; transition:opacity .18s; }
+  .camv .flash.on { opacity:.75; transition:none; }
+  .camv .err { position:absolute; left:16px; right:16px; top:30%; background:#1f2937; border-radius:12px; padding:16px; text-align:center; font-size:15px; line-height:1.5; }
+  .camv .err .btn { margin-top:10px; width:100%; }
+  .camv .bot { padding:8px 16px calc(14px + env(safe-area-inset-bottom)); }
+  .camv .opts { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; min-height:40px; }
+  .camv .tog { display:flex; align-items:center; gap:8px; font-size:14px; }
+  .camv .tog input { width:22px; height:22px; margin:0; }
+  .camv .msg { text-align:center; font-size:14px; min-height:20px; margin-bottom:10px; color:#d1fae5; }
+  .camv .msg.bad { color:#fca5a5; }
+  .camv .ctl { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; }
+  .camv .last { justify-self:start; display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; }
+  .camv .last img { width:54px; height:54px; object-fit:cover; border-radius:8px; border:2px solid #fff; }
+  .camv .shutter { width:78px; height:78px; border-radius:50%; border:5px solid #fff; background:#fff; box-shadow:inset 0 0 0 4px #000; padding:0; }
+  .camv .shutter:active { transform:scale(.93); }
+  .camv .shutter:disabled { opacity:.35; }
 </style>
 </head>
 <body>
@@ -121,6 +149,7 @@
   </div>
   <div id="bnStorage" class="banner warn hidden"></div>
   <div id="bnOld" class="banner bad hidden"></div>
+  <div id="bnAlbum" class="banner info hidden"><span id="bnAlbumMsg"></span><br><button class="btn small" id="btnAlbum">📥 사진첩에 저장</button></div>
 
   <div class="stat">
     <div class="phone" id="stPhone"><b>0</b><span>폰에만 있음</span></div>
@@ -149,6 +178,26 @@
   <label class="btn sec" id="lblAlbum" for="inAlbum">앨범</label>
   <button class="btn cam" id="btnCam">📷 촬영</button>
 </div>
+<div class="camv hidden" id="camView" role="dialog" aria-label="카메라">
+  <div class="top"><div class="dst" id="camDest"></div><button class="x" id="camClose">✕ 닫기</button></div>
+  <div class="stage">
+    <video id="camVideo" playsinline muted autoplay></video>
+    <div class="flash" id="camFlash"></div>
+    <div class="err hidden" id="camErr"><div id="camErrMsg"></div><button class="btn sec" id="camNative">기본 카메라로 찍기</button></div>
+  </div>
+  <div class="bot">
+    <div class="opts">
+      <label class="tog"><input type="checkbox" id="camAlbum"> 닫을 때 사진첩에도 저장</label>
+      <button class="x hidden" id="camTorch">🔦 플래시</button>
+    </div>
+    <div class="msg" id="camMsg"></div>
+    <div class="ctl">
+      <div class="last"><img id="camLast" class="hidden" alt=""><span id="camCount"></span></div>
+      <button class="shutter" id="camShot" aria-label="찍기" disabled></button>
+      <div></div>
+    </div>
+  </div>
+</div>
 <input type="file" id="inCam" accept="image/*" capture="environment" class="hidden">
 <input type="file" id="inAlbum" accept="image/*" multiple class="hidden">
 
@@ -158,6 +207,7 @@
   <label>창구 주소 (…/exec)</label><input id="sUrl" placeholder="https://script.google.com/macros/s/…/exec" inputmode="url">
   <label>팀 비밀번호</label><input id="sKey" type="password" autocomplete="off">
   <label>보관 확인 뒤 폰에 남겨 둘 날 수</label><input id="sKeep" type="number" min="1" max="60" value="7">
+  <label class="chk"><input type="checkbox" id="sAppCam" checked> 앱 카메라로 바로 저장 (끄면 예전처럼 폰 기본 카메라 — '다시 찍기 / 사진 사용' 확인)</label>
   <div class="row" style="margin-top:12px">
     <button class="btn small" id="btnPing">연결 시험</button>
     <button class="btn small" id="btnLink">설정 링크 복사</button>
