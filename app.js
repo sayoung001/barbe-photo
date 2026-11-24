@@ -4,7 +4,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "2.1.0";
+  const VERSION = "2.2.0";
   const Q = window.BarbeQ;
   const RD = window.BarbeRead;
   const READ_CFG = window.BARBE_READ || { maxEdge: 1600 };

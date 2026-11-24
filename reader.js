@@ -81,6 +81,32 @@
     };
   };
 
+  /** 물성 칠판 판정 — 바흐브 core.concrete_book.judge_prop 과 같은 규칙·같은 기준(BARBE_STD, 칠판틀_내보내기.py).
+   *  기준 슬럼프는 칠판 규격 끝 숫자(25-24-150 → 150). 단위수량은 배합표가 있어야 해서 PC(바흐브)에서만.
+   *  온도는 표준·서중 범위로 보고, 한중이면 범위를 같이 적는다(폰은 배합 구분을 모른다). 물성 칠판이 아니면 null. */
+  R.propJudge = (v) => {
+    if (!v || !(v["종류"] === "물성" || v["슬럼프"] != null || v["공기량"] != null)) return null;
+    if (v["종류"] === "압축강도") return null;
+    const S = Object.assign({ 슬럼프25: 10, 슬럼프50: 15, 슬럼프80: 25, 공기량기준: 4.5, 공기량허용: 1.5, 염화물상한: 0.3,
+      온도하한: 10, 온도상한: 35, 한중하한: 5, 한중상한: 20 }, root.BARBE_STD || {});
+    const out = [];
+    const m = String(v["규격"] || "").match(/(\d+)\s*-\s*(\d+)\s*-\s*(\d+)/);
+    const s0 = m ? Number(m[3]) : null;
+    const sl = R.num(v["슬럼프"]);
+    if (sl != null && s0 != null) {
+      const tol = s0 >= 80 ? S.슬럼프80 : s0 >= 50 ? S.슬럼프50 : S.슬럼프25;
+      out.push({ k: "슬럼프", ok: Math.abs(sl - s0) <= tol, txt: `슬럼프 ${sl} (${s0}±${tol})` });
+    }
+    const air = R.num(v["공기량"]);
+    if (air != null) out.push({ k: "공기량", ok: Math.abs(air - S.공기량기준) <= S.공기량허용 + 1e-9, txt: `공기량 ${air} (${S.공기량기준}±${S.공기량허용})` });
+    const cl = [R.num(v["염화물1"]), R.num(v["염화물2"])].filter((x) => x != null);
+    if (cl.length) out.push({ k: "염화물", ok: Math.max(...cl) <= S.염화물상한 + 1e-9, txt: `염화물 ${Math.max(...cl)} (${S.염화물상한} 이하)` });
+    const t = R.num(v["콘크리트온도"]);
+    if (t != null) out.push({ k: "온도", ok: S.온도하한 <= t && t <= S.온도상한, txt: `콘크리트 ${t}℃ (${S.온도하한}~${S.온도상한}, 한중이면 ${S.한중하한}~${S.한중상한})`, soft: true });
+    const hard = out.filter((x) => !x.soft);
+    return { items: out, ok: hard.length ? hard.every((x) => x.ok) : null, noSlumpSpec: sl != null && s0 == null };
+  };
+
   /** 확인할 것 목록 (글) */
   R.checks = (boardName, read) => {
     const b = R.board(boardName);
@@ -107,6 +133,11 @@
         if (!cands.some((c) => Math.abs(c - boardAvg) <= 0.1 + 1e-9)) out.push(`칠판에 적힌 평균 ${boardAvg} 와 계산 평균 ${R.fmt(a.overall, 1)} 이 다름`);
       }
     }
+    const pj = R.propJudge(v);
+    if (pj) {
+      for (const x of pj.items) if (!x.ok) out.push(`${x.txt} — ${x.soft ? "범위 밖 (한중 배합이면 괜찮을 수 있어요)" : "불합격"}`);
+      if (pj.noSlumpSpec) out.push("규격을 못 읽어 슬럼프 판정을 못 했어요 — 규격 칸을 눌러 고치세요");
+    }
     if (read.merged.conf === "낮음") out.push("모델이 '확신 낮음' — 칠판을 가까이 다시 찍어 보세요");
     return out;
   };
@@ -118,7 +149,9 @@
     if (!a || !a.groups.length) {
       const b = R.board(boardName);
       const got = b ? numFields(b).filter((f) => v[f.key] != null) : [];
-      return got.length ? got.slice(0, 4).map((f) => `${f.label} ${v[f.key]}`).join(" · ") : "";
+      const pj = R.propJudge(v);
+      const head = pj && pj.ok != null ? (pj.ok ? "물성 합격 · " : "물성 불합격 · ") : "";
+      return got.length ? head + got.slice(0, 4).map((f) => `${f.label} ${v[f.key]}`).join(" · ") : "";
     }
     const head = a.groups.length > 1 ? a.groups.map((g) => `${g.name} ${R.fmt(g.avg, g.dec)}`).join(" · ") + " · " : "";
     return `${head}평균 ${R.fmt(a.overall, a.dec)} ${a.unit}`.trim() + (a.count < a.expected && a.groups.length > 1 ? ` (${a.count}개)` : "");
@@ -177,6 +210,11 @@
       const got = numFields(b).filter((f) => v[f.key] != null);
       if (!got.length) html += `<div class="ri">칠판 숫자를 못 찾았어요 (칠판 사진이 아니면 괜찮아요)</div>`;
       else html += `<div class="rl">${got.map((f) => `<span>${esc(f.label)} ${cell(f)}${f.unit ? " " + esc(f.unit) : ""}</span>`).join("")}</div>`;
+      const pj = R.propJudge(v);
+      if (pj && pj.items.length) {
+        html += `<div class="rj${pj.ok === false ? " low" : ""}">${pj.ok == null ? "판정" : pj.ok ? "물성 합격" : "물성 불합격"}` +
+          `<span>${pj.items.map((x) => `${x.ok ? "○" : "✕"} ${esc(x.txt)}`).join(" · ")}</span></div>`;
+      }
     }
     const ck = R.checks(boardName, read);
     if (ck.length) html += `<ul class="rk">${ck.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>`;

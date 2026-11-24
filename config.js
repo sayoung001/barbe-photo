@@ -13,7 +13,9 @@
  */
 window.BARBE_CATEGORIES = [
   { id: "material", label: "자재검수", icon: "📦", folder: "자재검수/{MMDD}" },
-  { id: "remicon", label: "레미콘", icon: "🚚", hint: "회차마다 전체 1장 + 칠판 확대 1장 — 칠판을 찍으면 숫자를 읽어 평균을 알려 줘요", folder: "레미콘/{MMDD}", read: "레미콘" },
+  // 레미콘 두 칸은 같은 서류투입 '레미콘' 칸으로 간다 — 바흐브가 칠판을 읽어 물성/압축강도를 가른다 (2026-11-24)
+  { id: "remiconprop", label: "레미콘 물성", icon: "🌡️", hint: "회차마다 전체 1장 + 칠판 확대 1장 (타설위치 끝에 #1·#2 회차를 적어도 돼요) — 칠판을 찍으면 슬럼프·공기량·염화물·온도를 읽어 합격 여부를 알려 줘요. 슬럼프콘·공기량계·염화물 과정 사진도 이 칸에 이어서", folder: "레미콘/{MMDD}", read: "레미콘" },
+  { id: "remicon", label: "레미콘 압축강도", icon: "🚚", hint: "공시체 깨는 날 — 전체 1장 + 칠판 확대 1장. 칠판을 찍으면 조별·전체 평균을 알려 줘요", folder: "레미콘/{MMDD}", read: "레미콘" },
   {
     id: "civil", label: "BSCW·JSP 압축강도", icon: "🧪",
     hint: "시험한 날 찍기 — 칠판을 찍으면 S1~S3 평균을 알려 줘요", read: "BSCW_JSP",

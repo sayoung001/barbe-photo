@@ -339,3 +339,4 @@ window.BARBE_BOARDS = {
  }
 };
 window.BARBE_READ = {"models": ["claude-opus-4-5", "claude-sonnet-5"], "maxEdge": 1600};
+window.BARBE_STD = {"슬럼프25": 10, "슬럼프50": 15, "슬럼프80": 25, "공기량기준": 4.5, "공기량허용": 1.5, "염화물상한": 0.3, "온도하한": 10, "온도상한": 35, "한중하한": 5, "한중상한": 20};
