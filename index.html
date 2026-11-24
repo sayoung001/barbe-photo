@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f2a44">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="바흐브 사진">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>바흐브 현장사진</title>
+<style>
+  :root { --navy:#1f2a44; --bg:#f3f4f7; --card:#fff; --line:#e2e5ec; --muted:#6b7280;
+          --ok:#15803d; --okbg:#dcfce7; --warn:#b45309; --warnbg:#fef3c7; --bad:#b91c1c; --badbg:#fee2e2; --blue:#1d4ed8; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+         background:var(--bg); color:#111; padding-bottom:calc(120px + env(safe-area-inset-bottom)); }
+  header { background:var(--navy); color:#fff; padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
+           display:flex; align-items:center; gap:10px; position:sticky; top:0; z-index:5; }
+  header h1 { font-size:17px; margin:0; flex:1; }
+  header .who { font-size:13px; opacity:.85; }
+  header button { background:none; border:0; color:#fff; font-size:22px; padding:2px 4px; }
+  .wrap { padding:12px; max-width:640px; margin:0 auto; }
+  .banner { border-radius:10px; padding:10px 12px; margin-bottom:10px; font-size:14px; line-height:1.45; }
+  .banner.warn { background:var(--warnbg); color:#7c2d12; }
+  .banner.bad { background:var(--badbg); color:#7f1d1d; }
+  .banner.info { background:#e0e7ff; color:#1e3a8a; }
+  .banner button { margin-top:6px; }
+  .hidden { display:none !important; }
+
+  .stat { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+  .stat div { background:var(--card); border-radius:10px; padding:8px; text-align:center; border:1px solid var(--line); }
+  .stat b { display:block; font-size:22px; }
+  .stat span { font-size:12px; color:var(--muted); }
+  .stat .phone b { color:var(--warn); } .stat .phone.zero b { color:#9ca3af; }
+  .stat .stored b { color:var(--ok); }
+  .stat .err b { color:var(--bad); } .stat .err.zero b { color:#9ca3af; }
+
+  h2 { font-size:14px; color:var(--muted); margin:14px 2px 6px; font-weight:600; }
+  .cats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .cat { background:var(--card); border:2px solid var(--line); border-radius:12px; padding:10px 4px; text-align:center;
+         font-size:13px; line-height:1.25; min-height:64px; }
+  .cat .i { font-size:22px; display:block; margin-bottom:2px; }
+  .cat.on { border-color:var(--navy); background:#e8ecf7; font-weight:700; }
+  .subs { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .sub { border:1.5px solid var(--line); background:#fff; border-radius:20px; padding:8px 14px; font-size:14px; }
+  .sub.on { background:var(--navy); color:#fff; border-color:var(--navy); }
+  .ask { margin-top:10px; }
+  .ask input, .set input { width:100%; padding:11px 12px; font-size:16px; border:1.5px solid var(--line); border-radius:10px; }
+  .hint { font-size:12.5px; color:var(--muted); margin:8px 2px 0; }
+  .dest { font-size:12.5px; color:var(--blue); margin:6px 2px 0; word-break:break-all; }
+
+  .list { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .ph { position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden; background:#d1d5db; border:0; padding:0; }
+  .ph img { width:100%; height:100%; object-fit:cover; display:block; }
+  .ph .noimg { display:flex; align-items:center; justify-content:center; height:100%; font-size:10px; line-height:1.3; color:#374151; padding:4px 4px 18px; overflow:hidden; word-break:keep-all; }
+  .ph .badge { position:absolute; left:3px; bottom:3px; font-size:10.5px; padding:1px 5px; border-radius:6px; font-weight:700; }
+  .b-local { background:var(--warnbg); color:var(--warn); } .b-sending { background:#dbeafe; color:var(--blue); }
+  .b-stored { background:var(--okbg); color:var(--ok); } .b-error { background:var(--badbg); color:var(--bad); }
+  .empty { color:var(--muted); font-size:13px; padding:10px 2px; }
+
+  .bar { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line);
+         padding:10px 12px calc(10px + env(safe-area-inset-bottom)); display:flex; gap:8px; z-index:6; }
+  .btn { border:0; border-radius:12px; font-size:16px; font-weight:700; padding:14px; }
+  .btn.cam { flex:1; background:var(--navy); color:#fff; font-size:18px; }
+  .btn.cam:disabled { background:#9ca3af; }
+  .btn.sec { background:#e5e7eb; color:#111; font-size:14px; padding:14px 12px; }
+  .btn.small { font-size:14px; padding:9px 12px; background:#e5e7eb; }
+  .btn.danger { background:var(--badbg); color:var(--bad); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+
+  dialog { border:0; border-radius:14px; padding:0; width:min(560px,94vw); max-height:92vh; }
+  dialog::backdrop { background:rgba(0,0,0,.45); }
+  .dlg { padding:14px; }
+  .dlg h3 { margin:0 0 10px; font-size:17px; }
+  .set label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  .viewer img { width:100%; border-radius:8px; max-height:60vh; object-fit:contain; background:#000; }
+  .meta { font-size:13px; line-height:1.6; margin:8px 0; word-break:break-all; }
+  .toast { position:fixed; left:50%; bottom:calc(92px + env(safe-area-inset-bottom)); transform:translateX(-50%);
+           background:#111; color:#fff; padding:10px 14px; border-radius:10px; font-size:14px; opacity:0; transition:.2s;
+           pointer-events:none; z-index:10; max-width:92vw; text-align:center; }
+  .toast.show { opacity:.94; }
+  .ph .avg { position:absolute; right:3px; top:3px; font-size:11px; font-weight:800; padding:1px 5px; border-radius:6px; background:rgba(17,24,39,.82); color:#fff; }
+  .readbox { background:var(--card); border:1.5px solid var(--navy); border-radius:12px; padding:10px; margin-bottom:6px; }
+  .rh { font-size:13px; font-weight:700; margin-bottom:6px; } .rh small { font-weight:400; color:var(--muted); }
+  .rc { font-size:14px; } .rc.wait { color:var(--blue); } .rc.bad { color:var(--bad); }
+  .ri { font-size:12.5px; color:#374151; margin-bottom:6px; line-height:1.5; }
+  .rt { width:100%; border-collapse:collapse; }
+  .rt th { text-align:left; font-size:13px; color:var(--muted); width:38px; font-weight:600; }
+  .rt td { padding:3px 0; } .rt td.ga { text-align:right; font-weight:800; font-size:15px; width:58px; }
+  .rt td.ga.low { color:var(--warn); }
+  .cv { border:1px solid var(--line); background:#f9fafb; border-radius:7px; padding:6px 0; width:52px; margin-right:4px;
+        font-size:15px; font-variant-numeric:tabular-nums; }
+  .cv.dz { background:var(--warnbg); border-color:#f59e0b; color:#92400e; font-weight:700; }
+  .cv.fx { background:var(--okbg); border-color:#22c55e; }
+  .rl { display:flex; flex-wrap:wrap; gap:8px; font-size:13px; align-items:center; }
+  .ravg { margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); font-size:15px; }
+  .ravg b { font-size:24px; color:var(--navy); } .ravg span { display:block; font-size:12px; color:var(--muted); }
+  .rk { margin:8px 0 0; padding-left:18px; font-size:12.5px; color:#92400e; } .rk li { margin:2px 0; }
+  .rn { font-size:11.5px; color:var(--ok); margin-top:4px; }
+  #vRead .rc { margin:10px 0 4px; }
+  small.mono { font-family:ui-monospace,Menlo,monospace; font-size:11px; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>바흐브 현장사진</h1>
+  <span class="who" id="who"></span>
+  <button id="btnSettings" aria-label="설정">⚙︎</button>
+</header>
+
+<div class="wrap">
+  <div id="bnSetup" class="banner warn hidden">⚙︎ 설정에서 <b>이름·창구 주소·팀 비밀번호</b>를 먼저 넣어 주세요.</div>
+  <div id="bnInstall" class="banner bad hidden">
+    <b>홈 화면에 추가해서 쓰세요.</b> 브라우저 탭으로 쓰면, 아이폰은 며칠 안 열면 아직 못 보낸 사진을 지울 수 있어요.
+    (사파리 공유 버튼 → 홈 화면에 추가)
+  </div>
+  <div id="bnStorage" class="banner warn hidden"></div>
+  <div id="bnOld" class="banner bad hidden"></div>
+
+  <div class="stat">
+    <div class="phone" id="stPhone"><b>0</b><span>폰에만 있음</span></div>
+    <div class="stored" id="stStored"><b>0</b><span>드라이브 보관 확인</span></div>
+    <div class="err" id="stErr"><b>0</b><span>보내기 실패</span></div>
+  </div>
+
+  <div id="readBox" class="readbox hidden"></div>
+
+  <h2>1. 무슨 사진인가요</h2>
+  <div class="cats" id="cats"></div>
+  <div class="subs" id="subs"></div>
+  <div class="ask hidden" id="askBox"><input id="askInput" autocomplete="off"></div>
+  <p class="hint" id="hint"></p>
+  <p class="dest" id="dest"></p>
+
+  <h2 style="display:flex;align-items:center">
+    <span style="flex:1">찍은 사진 <small id="listInfo"></small></span>
+    <button class="btn small" id="btnRetry">지금 보내기</button>
+  </h2>
+  <div class="list" id="list"></div>
+  <p class="empty hidden" id="empty">아직 찍은 사진이 없어요.</p>
+</div>
+
+<div class="bar">
+  <label class="btn sec" id="lblAlbum" for="inAlbum">앨범</label>
+  <button class="btn cam" id="btnCam">📷 촬영</button>
+</div>
+<input type="file" id="inCam" accept="image/*" capture="environment" class="hidden">
+<input type="file" id="inAlbum" accept="image/*" multiple class="hidden">
+
+<dialog id="dlgSettings"><div class="dlg set">
+  <h3>설정</h3>
+  <label>내 이름 (파일 이름에 붙음)</label><input id="sName" placeholder="예: 이승현">
+  <label>창구 주소 (…/exec)</label><input id="sUrl" placeholder="https://script.google.com/macros/s/…/exec" inputmode="url">
+  <label>팀 비밀번호</label><input id="sKey" type="password" autocomplete="off">
+  <label>보관 확인 뒤 폰에 남겨 둘 날 수</label><input id="sKeep" type="number" min="1" max="60" value="7">
+  <div class="row" style="margin-top:12px">
+    <button class="btn small" id="btnPing">연결 시험</button>
+    <button class="btn small" id="btnLink">설정 링크 복사</button>
+    <button class="btn small" id="btnReconcile">오늘 대조</button>
+  </div>
+  <p class="meta" id="setMsg"></p>
+  <p class="meta" id="storeMsg"></p>
+  <div class="row" style="margin-top:6px">
+    <button class="btn small" id="btnExport">못 보낸 사진 폰에 꺼내기</button>
+  </div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end">
+    <button class="btn small" id="btnSetClose">닫기</button>
+    <button class="btn small" style="background:var(--navy);color:#fff" id="btnSetSave">저장</button>
+  </div>
+  <p><small class="mono" id="ver"></small></p>
+</div></dialog>
+
+<dialog id="dlgView"><div class="dlg viewer">
+  <img id="vImg" alt="">
+  <div id="vRead"></div>
+  <div class="meta" id="vMeta"></div>
+  <div class="row" style="justify-content:space-between">
+    <button class="btn small danger" id="vDel">잘못 찍음 — 지우기</button>
+    <div class="row">
+      <button class="btn small" id="vReread">다시 읽기</button>
+      <button class="btn small" id="vSend">다시 보내기</button>
+      <button class="btn small" id="vClose">닫기</button>
+    </div>
+  </div>
+</div></dialog>
+
+<div class="toast" id="toast"></div>
+<script src="config.js"></script>
+<script src="boards.js"></script>
+<script src="reader.js"></script>
+<script src="queue.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
