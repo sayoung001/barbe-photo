@@ -19,13 +19,14 @@ window.BARBE_CATEGORIES = [
   {
     id: "civil", label: "BSCW·JSP 압축강도", icon: "🧪",
     hint: "시험한 날 찍기 — 칠판을 찍으면 S1~S3 평균을 알려 줘요", read: "BSCW_JSP",
+    // 서류투입 'BSCW'·'JSP' 칸의 '시험한 날\재령' 폴더로 (1124\7일 = 그날 7일 시험) — 토목가시설 묶음 칸으로 보내지 않는다 (2026-11-24)
     subs: [
-      { label: "BSCW 7일", folder: "BSCW_7일" },
-      { label: "BSCW 28일", folder: "BSCW_28일" },
-      { label: "JSP 7일", folder: "JSP_7일" },
-      { label: "JSP 28일", folder: "JSP_28일" },
+      { label: "BSCW 7일", folder: "BSCW/{MMDD}/7일" },
+      { label: "BSCW 28일", folder: "BSCW/{MMDD}/28일" },
+      { label: "JSP 7일", folder: "JSP/{MMDD}/7일" },
+      { label: "JSP 28일", folder: "JSP/{MMDD}/28일" },
     ],
-    folder: "토목가시설/{sub}",
+    folder: "{sub}",
   },
   { id: "sample", label: "시료채취", icon: "🧫", folder: "시료채취/{YYYYMMDD}" },
   { id: "phcshape", label: "PHC 겉모양·치수", icon: "📏", folder: "PHC_겉모양/{YYYYMMDD}" },

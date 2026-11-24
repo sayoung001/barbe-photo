@@ -4,7 +4,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "2.3.0";
+  const VERSION = "2.3.1";
   const Q = window.BarbeQ;
   const RD = window.BarbeRead;
   const READ_CFG = window.BARBE_READ || { maxEdge: 1600 };
@@ -54,10 +54,10 @@
   function folderFor(cat, date) {
     const sub = (cat.subs || []).find((s) => s.label === sel.sub);
     return cat.folder
+      .replace(/\{sub\}/g, sub ? sub.folder : "")          // 세부 폴더에도 {MMDD} 를 쓸 수 있게 먼저 (BSCW/{MMDD}/7일)
       .replace(/\{MMDD\}/g, ymd(date).slice(4))
       .replace(/\{YYYYMMDD\}/g, ymd(date))
-      .replace(/\{ask\}/g, safe(sel.ask))
-      .replace(/\{sub\}/g, sub ? sub.folder : "");
+      .replace(/\{ask\}/g, safe(sel.ask));
   }
   function whyBlocked() {
     if (!configured()) return "설정 먼저";

@@ -1,5 +1,5 @@
 /* 바흐브 현장사진 v2 — 화면 파일 캐시(지하에서도 열리게) + 안드로이드 백그라운드 보내기 */
-const CACHE = "barbe-photo-v2.3.0";
+const CACHE = "barbe-photo-v2.3.1";
 const FILES = ["./", "index.html", "app.js", "queue.js", "config.js", "boards.js", "reader.js", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png"];
 importScripts("queue.js");
 
